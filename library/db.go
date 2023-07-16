@@ -31,6 +31,16 @@ var (
     `
 )
 
+type dbClient interface {
+    ExecContext(context.Context, string, ...any) (sql.Result, error)
+    Close() error
+}
+
+type Credentials struct {
+	Username string
+	Password string
+}
+
 type bookData struct {
     Id             int        `json:"id" validate:"required"`
 	Isbn           string     `json:"isbn" validate:"required"`
@@ -55,11 +65,12 @@ func (b bookData) validate() error {
 }
 
 
-type book struct {
+type Book struct {
+    Client dbClient
 	Data bookData
 }
 
-func (b book)templateBookQuery(template string) string {
+func (b Book)templateBookQuery(template string) string {
 	replacer := strings.NewReplacer(
 		"{id}", strconv.Itoa(b.Data.Id),
 		"{isbn}", b.Data.Isbn,
@@ -76,13 +87,17 @@ func (b book)templateBookQuery(template string) string {
 }
 
 // Adds a book to database
-func (b book) Add(ctx context.Context, client *sql.DB) (sql.Result, error) {
+func (b Book) Add(ctx context.Context) (Result, error) {
 	query := b.templateBookQuery(book_insertion_query)
-	result, err := client.ExecContext(ctx, query)
+	result, err := b.Client.ExecContext(ctx, query)
 	if err != nil {
-		return nil, err
+		return Result{}, err
 	}
-	return result, nil
+
+	return Result{
+        table: "book",
+        result: result,
+    }, nil
 }
 
 
@@ -91,7 +106,7 @@ func (b book) Add(ctx context.Context, client *sql.DB) (sql.Result, error) {
 
 // constructor method that is used to unmarshall a REST request into a book object
 // which has CRUD methods.
-func NewBook(data []byte) (*book, error) {
+func NewBook(data []byte) (*Book, error) {
 	var bookData *bookData
 
     if ok := json.Valid(data); !ok {

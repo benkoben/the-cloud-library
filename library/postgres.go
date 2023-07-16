@@ -12,9 +12,18 @@ var (
 	postgresBaseConnString = "postgres://{username}:{password}@{host}/{database}?sslmode={sslmode}"
 )
 
+type dbClient interface {
+    ExecContext(context.Context, string, ...any) (sql.Result, error)
+    Close() error
+}
+
 type Credentials struct {
 	Username string
 	Password string
+}
+
+type Client struct {
+    dbClient
 }
 
 type postgresClient struct {
@@ -35,11 +44,10 @@ type PostgresClientOptions struct {
 	Host       string
 	SslEnabled bool
 	Database   string
-    // TODO: Add timeouts
 }
 
 
-func NewPgClient(cred Credentials, options PostgresClientOptions) (*postgresClient, error) {
+func NewPgClient(cred Credentials, options PostgresClientOptions) (*sql.DB, error) {
 	if options.Database == "" {
 		return nil, errors.New("database must not be empty")
 	}
@@ -52,8 +60,11 @@ func NewPgClient(cred Credentials, options PostgresClientOptions) (*postgresClie
 		"{sslmode}", strconv.FormatBool(options.SslEnabled),
 	)
 	connStr := replacer.Replace(postgresBaseConnString)
-	return &postgresClient{
-		connString: connStr,
-        driver: "postgres",
-	}, nil
+
+	db, err := sql.Open("postgres", connStr)
+	if err != nil {
+		return nil, err
+	}
+
+    return db, nil
 }
