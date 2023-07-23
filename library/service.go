@@ -17,6 +17,7 @@ type Result struct {
 	Response []byte
 }
 
+// tablesStores wraps all CRUD operations for a table inside the database
 type tableStore interface {
 	Store(context.Context, any) (Result, error)
 	Get(context.Context, int64) error
@@ -24,10 +25,11 @@ type tableStore interface {
 	List(context.Context, any) error
 }
 
+// Each table in the datbase has its own tableStore.
 type DbStore struct {
-	books   tableStore
-	users   tableStore
-	rentals tableStore
+	Books   tableStore
+	Users   tableStore
+	Rentals tableStore
 }
 
 // service is used to control the behaviour our service should
@@ -45,15 +47,15 @@ type ServiceOptions struct {
 
 // Constructor function for the service
 func NewService(store DbStore, options ServiceOptions) (*Service, error) {
-	if store.books == nil {
+	if store.Books == nil {
 		return nil, errors.New("store.books must not be nil")
 	}
 
-	if store.users == nil {
+	if store.Users == nil {
 		return nil, errors.New("store.users must not be nil")
 	}
 
-	if store.rentals == nil {
+	if store.Rentals == nil {
 		return nil, errors.New("store.rentals must not be nil")
 	}
 
@@ -123,7 +125,7 @@ func (s Service) storeBookProducer(storeBookCh <-chan *Book) <-chan operation {
 				o := operation{}
 				o.operation = "store"
 
-				res, err := s.store.books.Store(ctx, &book)
+				res, err := s.store.Books.Store(ctx, &book)
 				if err != nil {
 					o.err = err
 				}

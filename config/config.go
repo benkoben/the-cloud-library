@@ -122,10 +122,10 @@ func NewLibraryService(cfg *Library) (*Library.Service, error) {
 		return nil, fmt.Errorf("could not create rentalStore: %s\n", err)
 	}
 
-	dbStore = library.DbStore{
-		books:       bookStore,
-		users:       userStore,
-		rentalStore: rentalStore,
+    dbStore := library.DbStore{
+		Books:       bookStore,
+		Users:       userStore,
+		RentalStore: rentalStore,
 	}
 
 	opts := library.ServiceOptions{
