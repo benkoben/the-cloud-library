@@ -87,7 +87,7 @@ func New() (*Configuration, error) {
 }
 
 // Tie all settings for the database layer together and returns a Service
-func NewLibraryService(cfg *Library) (*Library.Service, error) {
+func NewLibraryService(cfg *Library) (*library.Service, error) {
 	cred, err := library.NewDbCredentials(cfg.DatabaseCredentials)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create db credentials: %s\n", err)
@@ -99,7 +99,7 @@ func NewLibraryService(cfg *Library) (*Library.Service, error) {
 		Database:   cfg.DatabaseName,
 	}
 
-	dbClient, err := library.NewPgClient(cred, *dbOptions)
+	dbClient, err := library.NewPgClient(*cred, *dbOptions)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create new db client: %s\n", err)
 	}
@@ -111,21 +111,21 @@ func NewLibraryService(cfg *Library) (*Library.Service, error) {
 	}
 
     // userStore implements all CRUD operations for the books table
-	userStore, err := library.NewUserStore(dbClient)
-	if err != nil {
-		return nil, fmt.Errorf("could not create userStore: %s\n", err)
-	}
-
-    // rentalStore implements all CRUD operations for the books table
-	rentalStore, err := library.NewRentalStore(dbClient)
-	if err != nil {
-		return nil, fmt.Errorf("could not create rentalStore: %s\n", err)
-	}
+//	userStore, err := library.NewUserStore(dbClient)
+//	if err != nil {
+//		return nil, fmt.Errorf("could not create userStore: %s\n", err)
+//	}
+//
+//    // rentalStore implements all CRUD operations for the books table
+//	rentalStore, err := library.NewRentalStore(dbClient)
+//	if err != nil {
+//		return nil, fmt.Errorf("could not create rentalStore: %s\n", err)
+//	}
 
     dbStore := library.DbStore{
 		Books:       bookStore,
-		Users:       userStore,
-		RentalStore: rentalStore,
+	//	Users:       userStore,
+	//	Rentals: rentalStore,
 	}
 
 	opts := library.ServiceOptions{

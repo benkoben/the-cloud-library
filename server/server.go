@@ -4,6 +4,10 @@ import (
 	"net/http"
 	"strconv"
 	"time"
+    "os/signal"
+    "syscall"
+    "context"
+    "os"
 
 	"github.com/benkoben/the-cloud-library/library"
 )
@@ -13,7 +17,6 @@ const (
 	defaultReadTimeout       = time.Second * 15
 	defaultWriteTimeout      = time.Second * 15
 	defaultIdleTimeout       = time.Second * 15
-	defaultMultiPartMaxBytes = 32 << 20
 )
 
 type logger interface {
@@ -44,7 +47,7 @@ type Options struct {
 	IdleTimeout  time.Duration
 }
 
-func NewServer(options Options) (*server, error) {
+func New(options Options) (*server, error) {
 
 	if options.Router == nil {
 		options.Router = http.NewServeMux()
@@ -81,9 +84,32 @@ func NewServer(options Options) (*server, error) {
 	}, nil
 }
 
-func (s *server) Start() {
+
+// Start the server.
+func (s server) Start() {
 	s.routes()
 	go func() {
-
+		if err := s.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			s.log.Fatalf("Server error %v.\n", err)
+		}
+		s.log.Println("Server stopped.")
 	}()
+	s.log.Printf("Server listening on: %s.\n", s.httpServer.Addr)
+	s.stop()
+}
+
+func (s server) stop() {
+	stop := make(chan os.Signal, 1)
+	signal.Notify(stop, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+	sig := <-stop
+
+	s.log.Printf("Shutting down server. Reason: %s.\n", sig.String())
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+
+	s.httpServer.SetKeepAlivesEnabled(false)
+	if err := s.httpServer.Shutdown(ctx); err != nil {
+		s.log.Printf("Server shutdown: %v.\n", err)
+	}
 }

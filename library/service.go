@@ -1,9 +1,5 @@
 package library
 
-// TODO: Each session has its own context and one session is one single connection to the database
-// Timeout controls context timout (read about this)
-
-// Concurrency controls how many transactions can be sent to database in parallel
 
 import (
 	"context"
@@ -18,18 +14,18 @@ type Result struct {
 }
 
 // tablesStores wraps all CRUD operations for a table inside the database
-type tableStore interface {
-	Store(context.Context, any) (Result, error)
-	Get(context.Context, int64) error
-	Delete(context.Context, any) error
-	List(context.Context, any) error
+type bookStore interface {
+	Store(context.Context, *Book) (Result, error)
+	Get(context.Context, int64) (Result, error)
+	Delete(context.Context, *Book) (Result, error)
+	List(context.Context, *BooksFilters) (Result, error)
 }
 
 // Each table in the datbase has its own tableStore.
 type DbStore struct {
-	Books   tableStore
-	Users   tableStore
-	Rentals tableStore
+	Books   bookStore
+	// Users   UserStore
+	// Rentals RentalStore
 }
 
 // service is used to control the behaviour our service should
@@ -51,13 +47,13 @@ func NewService(store DbStore, options ServiceOptions) (*Service, error) {
 		return nil, errors.New("store.books must not be nil")
 	}
 
-	if store.Users == nil {
-		return nil, errors.New("store.users must not be nil")
-	}
-
-	if store.Rentals == nil {
-		return nil, errors.New("store.rentals must not be nil")
-	}
+//	if store.Users == nil {
+//		return nil, errors.New("store.users must not be nil")
+//	}
+//
+//	if store.Rentals == nil {
+//		return nil, errors.New("store.rentals must not be nil")
+//	}
 
 	if options.Concurrency == 0 {
 		options.Concurrency = 1
@@ -125,7 +121,7 @@ func (s Service) storeBookProducer(storeBookCh <-chan *Book) <-chan operation {
 				o := operation{}
 				o.operation = "store"
 
-				res, err := s.store.Books.Store(ctx, &book)
+				res, err := s.store.Books.Store(ctx, book)
 				if err != nil {
 					o.err = err
 				}
