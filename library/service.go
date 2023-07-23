@@ -5,37 +5,34 @@ package library
 
 // Concurrency controls how many transactions can be sent to database in parallel
 
-// database implements any driver that implements the InitDb method (this project uses postgres)
 
 import (
 	"context"
-	"database/sql"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
-
-	"unicode/utf8"
 )
 
 
 type Result struct {
-    table string
-    result sql.Result
+    Response []byte
 }
 
-// business logic
-type database interface {
-    Close() error 
+type tableStore interface{
+    Store(context.Context, any) (Result, error)
+    Get(context.Context, int64) error
+    Delete(context.Context, any) error
+    List(context.Context, any) error
 }
 
-type Service interface {
-    Create(payloads ...[]byte) ([]Result, error)
-}
 
 // service is used to control the behaviour our service should
 // have towards the database
 type service struct {
-	database   database
+    books      tableStore
+ //   users      tableStore
+ //   rentals    tableStore
 	timeout    time.Duration
 	concurreny int
 }
@@ -46,9 +43,9 @@ type ServiceOptions struct {
 }
 
 // Constructor function for the service
-func NewService(database database, options ServiceOptions) (*service, error) {
-	if database == nil {
-		return nil, errors.New("database must not be nil")
+func NewService(bookStore tableStore, options ServiceOptions) (*service, error) {
+	if bookStore == nil {
+		return nil, errors.New("bookStore must not be nil")
 	}
 
 	if options.Concurrency == 0 {
@@ -60,7 +57,7 @@ func NewService(database database, options ServiceOptions) (*service, error) {
 	}
 
 	return &service{
-		database:   database,
+		books:      bookStore,
 		timeout:    options.Timeout,
 		concurreny: options.Concurrency,
 	}, nil
@@ -72,35 +69,37 @@ type operation struct {
     err error
 }
 
-func (s service) Create(table string, payloads ...[]byte)([]Result, error){
-    if utf8.RuneCountInString(table) == 0 {
-        return nil, errors.New("table cannot be 0 of length")
-    } 
+func (s service) StoreBook(payloads ...[]byte)([]Result, error){
+    if len(payloads) == 0 {
+        return nil, fmt.Errorf("payload cannot be 0 in length")
+    }
 
-    createCh := make(chan []byte)
+    storeBookCh := make(chan *Book)
 
-	// Create a go routine that sends *File to the *File channel.
-	// The go routine is needed her to not block the function
+	// Create a go routine that sends *payload to the *storeCh channel.
+	// The go routine is needed here to not block the function
 	// from continuing to the next steps of calling the
 	// producer and consumer methods.
 	go func() {
 		for _, payload := range payloads {
-			createCh <- payload
+            if b, err := NewBook(payload); err !=nil {
+			    storeBookCh <- b 
+            }
 		}
 		// After all payloads has been sent to the channel,
 		// close it to signal that no more files will be
 		// sent.
-		close(createCh)
+		close(storeBookCh)
 	}()
 
-    createUploadCh := s.createProducer(table, createCh)  
-	return s.createConsumer(createUploadCh)
+    storeBookResultCh := s.storeBookProducer(storeBookCh)  
+	return s.storeBookResultConsumer(storeBookResultCh)
 }
 
 
-func (s service) createProducer(table string, createCh <-chan []byte) <- chan operation {
+func (s service) storeBookProducer(storeBookCh <-chan *Book) <- chan operation {
     // Add books to the database and save results in a channel
-    createUploadCh := make(chan operation)
+    storeBookResultCh := make(chan operation)
     var wg sync.WaitGroup
 
     // table signals which which entity the payloads belong to.
@@ -108,28 +107,22 @@ func (s service) createProducer(table string, createCh <-chan []byte) <- chan op
         wg.Add(1)
         go func() {
             defer wg.Done()
-            switch table {
-                case "book":
-                    for book := range createCh {
-                        ctx, cancel := context.WithTimeout(context.Background(), s.timeout)
-				        defer cancel()
-                       
-                        o := operation{}
-                        o.operation = "create"
+            
+            for book := range storeBookCh {
+            	ctx, cancel := context.WithTimeout(context.Background(), s.timeout)
+			    defer cancel()
+                
 
-                        b, err := NewBook(book)
-                        if err != nil {
-                            o.err = err
-                        }
+                o := operation{}
+                o.operation = "store"
 
-                        result, err := b.Add(ctx)
-                        if err != nil {
-                            o.err = err
-                        }
-                        o.result = result
+                res, err := s.books.Store(ctx, &book)
+                if err != nil {
+                    o.err = err
+                }
+                o.result = res
 
-                        createUploadCh <- o
-                    }
+                storeBookResultCh <- o
             }
         }()
     }
@@ -138,21 +131,21 @@ func (s service) createProducer(table string, createCh <-chan []byte) <- chan op
 	// and close the createUploadCh channel.
 	go func() {
 		wg.Wait()
-		close(createUploadCh)
+		close(storeBookResultCh)
 	}()
 
-    return createUploadCh
+    return storeBookResultCh
 }
 
-func (s service) createConsumer(createUploadCh <-chan operation)([]Result, error){
+func (s service) storeBookResultConsumer(storeBookResultCh <-chan operation)([]Result, error){
     results := make([]Result, 0, 0)
     errs := make([]error, 0, 0)
 
-    for update := range createUploadCh {
-        if update.err != nil {
-            errs = append(errs, update.err)
+    for res := range storeBookResultCh {
+        if res.err != nil {
+            errs = append(errs, res.err)
         } else {
-            results = append(results, update.result)
+            results = append(results, res.result)
         }
     } 
     return results, errors.Join(errs...)

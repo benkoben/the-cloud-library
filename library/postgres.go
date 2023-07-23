@@ -12,18 +12,10 @@ var (
 	postgresBaseConnString = "postgres://{username}:{password}@{host}/{database}?sslmode={sslmode}"
 )
 
-type dbClient interface {
-    ExecContext(context.Context, string, ...any) (sql.Result, error)
-    Close() error
-}
 
 type Credentials struct {
 	Username string
 	Password string
-}
-
-type Client struct {
-    dbClient
 }
 
 type postgresClient struct {
