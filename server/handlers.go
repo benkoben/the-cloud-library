@@ -2,7 +2,7 @@ package server
 
 import (
 	"net/http"
-    "io"
+    "io/ioutil"
     "bytes"
 	"github.com/benkoben/the-cloud-library/library"
 )
@@ -26,13 +26,19 @@ func (s *server)bookHandler() http.Handler{
 
 
         if r.Method == http.MethodPost {
-            // TODO: ioutil.Reader() can be used here to read the body (https://www.digitalocean.com/community/tutorials/how-to-make-an-http-server-in-go#reading-a-request-body)
-            book, err := library.NewBook(streamToByte(r.Body))
-            if err != nil {
+
+            body, err := ioutil.ReadAll(r.Body)
+        	if err != nil {
                 write(w, newError(http.StatusBadRequest, errInternalServer))
-			    return
+        	}
+
+            book, err := library.NewBook(body)
+            if err != nil {
+                write(w, newError(http.StatusBadRequest, errMissingFieldBook))
             }
-            s.service.book.Store(r.Context(), book)
+
+
+            s.service.books.Store(r.Context(), book)
         }
         if r.Method == http.MethodGet {
 

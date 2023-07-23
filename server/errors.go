@@ -8,7 +8,7 @@ const (
 	errInternalServer       = "Internal server error."
 	errMethodNotAllowed     = "Method not allowed."
 //	errNotMultipartError    = "Malformed request. Not multipart/form-data."
-//	errMissingField         = "Malformed request. Missing field '" + filesKey + "'."
+    errMissingFieldBook     = "Malformed request. Request body cannot be marshaled into Book"
 	errUnauthorized         = "Not authorized."
 )
 

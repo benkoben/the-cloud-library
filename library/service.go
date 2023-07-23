@@ -29,7 +29,7 @@ type tableStore interface{
 
 // service is used to control the behaviour our service should
 // have towards the database
-type service struct {
+type Service struct {
     books      tableStore
  //   users      tableStore
  //   rentals    tableStore
@@ -43,7 +43,7 @@ type ServiceOptions struct {
 }
 
 // Constructor function for the service
-func NewService(bookStore tableStore, options ServiceOptions) (*service, error) {
+func NewService(bookStore tableStore, options ServiceOptions) (*Service, error) {
 	if bookStore == nil {
 		return nil, errors.New("bookStore must not be nil")
 	}
@@ -56,7 +56,7 @@ func NewService(bookStore tableStore, options ServiceOptions) (*service, error) 
 		options.Timeout = time.Second * 10
 	}
 
-	return &service{
+	return &Service{
 		books:      bookStore,
 		timeout:    options.Timeout,
 		concurreny: options.Concurrency,
@@ -69,7 +69,7 @@ type operation struct {
     err error
 }
 
-func (s service) StoreBook(payloads ...[]byte)([]Result, error){
+func (s Service) StoreBook(payloads ...[]byte)([]Result, error){
     if len(payloads) == 0 {
         return nil, fmt.Errorf("payload cannot be 0 in length")
     }
@@ -97,7 +97,7 @@ func (s service) StoreBook(payloads ...[]byte)([]Result, error){
 }
 
 
-func (s service) storeBookProducer(storeBookCh <-chan *Book) <- chan operation {
+func (s Service) storeBookProducer(storeBookCh <-chan *Book) <- chan operation {
     // Add books to the database and save results in a channel
     storeBookResultCh := make(chan operation)
     var wg sync.WaitGroup
@@ -137,7 +137,7 @@ func (s service) storeBookProducer(storeBookCh <-chan *Book) <- chan operation {
     return storeBookResultCh
 }
 
-func (s service) storeBookResultConsumer(storeBookResultCh <-chan operation)([]Result, error){
+func (s Service) storeBookResultConsumer(storeBookResultCh <-chan operation)([]Result, error){
     results := make([]Result, 0, 0)
     errs := make([]error, 0, 0)
 
