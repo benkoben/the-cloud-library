@@ -1,17 +1,13 @@
 package server
 
-
 import (
 	"encoding/json"
 	"net/http"
-
-	"github.com/benkoben/the-cloud-library/library"
 )
 
-
 type Results struct {
-    Stores  []string `json:"stores"`
-    Message string `json:"message"`
+	Stores  []string `json:"stores"`
+	Message string   `json:"message"`
 }
 
 // JSON returns the JSON encoding of uploadResults.

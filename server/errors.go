@@ -1,15 +1,15 @@
 package server
 
 import (
-    "encoding/json"
+	"encoding/json"
 )
 
 const (
-	errInternalServer       = "Internal server error."
-	errMethodNotAllowed     = "Method not allowed."
-//	errNotMultipartError    = "Malformed request. Not multipart/form-data."
-    errMissingFieldBook     = "Malformed request. Request body cannot be marshaled into Book"
-	errUnauthorized         = "Not authorized."
+	errInternalServer   = "Internal server error."
+	errMethodNotAllowed = "Method not allowed."
+	//	errNotMultipartError    = "Malformed request. Not multipart/form-data."
+	errMissingFieldBook = "Malformed request. Request body cannot be marshaled into Book"
+	errUnauthorized     = "Not authorized."
 )
 
 // Error represents an HTTP error response from the server.

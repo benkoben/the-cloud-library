@@ -23,7 +23,7 @@ func TestNewPgOperator(t *testing.T) {
 			},
 			want: &postgresClient{
 				connString: "postgres://postgres:Syp9393@localhost/library?sslmode=false",
-                driver: "postgres",
+				driver:     "postgres",
 			},
 			cred: Credentials{
 				Username: "postgres",

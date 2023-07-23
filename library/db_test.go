@@ -11,34 +11,34 @@ import (
 
 func TestNewBook(t *testing.T) {
 	var tests = []struct {
-		name          string
-        input         string
-		want          *book
-		wantError     error
+		name      string
+		input     string
+		want      *book
+		wantError error
 	}{
 		{
-			name:          "new book with valid payload",
-            input: jsonData,
+			name:  "new book with valid payload",
+			input: jsonData,
 			want: &book{
 				Data: bookData{
-                    Id: 1234,
-                    Isbn: "9789100187934",
-                    Title: "Pesten",
-                    Lang: "swedish",
-                    Translator: "Jan Stolpe",
-                    Author: "Albert Camus",
-                    Pages: 254,
-                    Publisher: "Albert Bonniers",
-                    Published_date: stringToTime("2022-03-02"),
-                    Added_date: stringToTime("2022-03-02"),
-                },
+					Id:             1234,
+					Isbn:           "9789100187934",
+					Title:          "Pesten",
+					Lang:           "swedish",
+					Translator:     "Jan Stolpe",
+					Author:         "Albert Camus",
+					Pages:          254,
+					Publisher:      "Albert Bonniers",
+					Published_date: stringToTime("2022-03-02"),
+					Added_date:     stringToTime("2022-03-02"),
+				},
 			},
 			wantError: nil,
 		},
 		{
-			name:          "new book with invalid payload",
-            input: errJsonData,
-			want: nil,
+			name:      "new book with invalid payload",
+			input:     errJsonData,
+			want:      nil,
 			wantError: errors.New("error"),
 		},
 	}
@@ -76,10 +76,9 @@ var errJsonData string = `
 `
 
 func stringToTime(sTime string) *time.Time {
-    t, err := time.Parse(time.DateOnly, sTime)
-    if err != nil {
-        fmt.Println(err)
-    }
-    return &t
+	t, err := time.Parse(time.DateOnly, sTime)
+	if err != nil {
+		fmt.Println(err)
+	}
+	return &t
 }
-

@@ -43,12 +43,12 @@ func TestNewService(t *testing.T) {
 }
 
 type fakeDb struct {
-    connErr bool   
+	connErr bool
 }
 
 func (db fakeDb) InitDb() error {
-    if db.connErr {
-        return errors.New("cannot connect to db")
-    }
-    return nil
-} 
+	if db.connErr {
+		return errors.New("cannot connect to db")
+	}
+	return nil
+}

@@ -36,5 +36,3 @@ func userFromContext(ctx context.Context, key contextKey) (User, error) {
 	}
 	return user, nil
 }
-
-
