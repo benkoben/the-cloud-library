@@ -7,6 +7,7 @@ require (
 	github.com/caarlos0/env/v6 v6.10.1
 	github.com/google/go-cmp v0.5.9
 	github.com/gorilla/mux v1.8.0
+	github.com/lib/pq v1.10.9
 )
 
 require (

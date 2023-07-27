@@ -21,11 +21,11 @@ var (
 )
 
 type Books struct {
-	Response []Book `json:"response"`
+	Data []Book `json:"data"`
 }
 
 type Book struct {
-	Id             int        `json:"id" validate:"required"`
+	Id             int        `json:"id"`
 	Isbn           string     `json:"isbn" validate:"required"`
 	Title          string     `json:"title" validate:"required"`
 	Lang           string     `json:"lang" validate:"required"`
@@ -33,23 +33,23 @@ type Book struct {
 	Author         string     `json:"author" validate:"required"`
 	Pages          int        `json:"pages" validate:"required"`
 	Publisher      string     `json:"publisher" validate:"required"`
-	Published_date *time.Time `json:"published_date" validate:"required"`
-	Added_date     *time.Time `json:"added_date" validate:"required"`
+	Published_date *time.Time `json:"published_date"`
+	Added_date     *time.Time `json:"added_date"`
 }
 
 func (b *Books) Marshal() ([]byte, error) {
 	return json.Marshal(b)
 }
 
-func NewBook(payload []byte) (*Book, error) {
+func NewBooks(payload []byte) (*Books, error) {
 	if len(payload) == 0 {
 		return nil, fmt.Errorf("payload cannot be 0 in size")
 	}
-	var book Book
-	if err := json.Unmarshal(payload, &book); err != nil {
+	var books Books
+	if err := json.Unmarshal(payload, &books); err != nil {
 		return nil, fmt.Errorf("cannot unmarshall payload into book %w,", err)
 	}
-	return &book, nil
+	return &books, nil
 }
 
 type BookStore struct {
@@ -69,7 +69,7 @@ func NewBookStore(db *sql.DB) (*BookStore, error) {
 //
 // If the book has an ID and it does not exist in the database, Store returns ErrNotFound.
 func (bs *BookStore) Store(ctx context.Context, b *Book) (Result, error) {
-	r := Books{Response: []Book{*b}}
+	r := Books{Data: []Book{*b}}
 
 	response, err := r.Marshal()
 	if err != nil {
@@ -100,7 +100,7 @@ func (bs *BookStore) Get(ctx context.Context, id int64) (Result, error) {
 	}
 
 	// Build response message
-	r := Books{Response: []Book{b}}
+	r := Books{Data: []Book{b}}
 
 	response, err := r.Marshal()
 	if err != nil {
@@ -175,7 +175,7 @@ func (bs *BookStore) Delete(ctx context.Context, b *Book) (Result, error) {
 		return Result{}, ErrNotFound
 	}
 
-	r := Books{Response: []Book{*b}}
+	r := Books{Data: []Book{*b}}
 
 	// Create response message
 	response, err := r.Marshal()
@@ -251,7 +251,7 @@ func (bs *BookStore) List(ctx context.Context, filters *BooksFilters) (Result, e
 		if err != nil {
 			return Result{}, fmt.Errorf("list characters %w,", err)
 		}
-		books.Response = append(books.Response, b)
+		books.Data = append(books.Data, b)
 	}
 
 	response, err := books.Marshal()

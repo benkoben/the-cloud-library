@@ -6,9 +6,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+    "os"
 	"strconv"
 	"strings"
+    _ "github.com/lib/pq"
 )
 
 var (
@@ -24,13 +25,19 @@ type Credentials struct {
 // Which is generally more secure than using environment variables for credentials.
 func NewDbCredentials(path string) (*Credentials, error) {
 
-	fileContent, err := ioutil.ReadFile(path)
+	fileContent, err := os.ReadFile(path)
+    
+    if len(fileContent) == 0 {
+        return nil, fmt.Errorf("file not found. make sure that %s exists and containts valid db credentials", path)
+    }
+
 	if err != nil {
-		fmt.Errorf("could not read file: %s\n", err)
+		return nil, fmt.Errorf("could not read file in path %s: %s\n", path, err)
 	}
+
 	var cred Credentials
 	if err := json.Unmarshal(fileContent, &cred); err != nil {
-		return nil, fmt.Errorf("could not unmarshal file into credentials: %s\n", err)
+		return nil, fmt.Errorf("could not unmarshal %s into credentials: %s\n",path, err)
 	}
 	return &cred, nil
 }

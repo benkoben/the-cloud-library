@@ -4,7 +4,6 @@ package library
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 )
@@ -76,10 +75,7 @@ type operation struct {
 	err       error
 }
 
-func (s Service) StoreBook(payloads ...[]byte) ([]Result, error) {
-	if len(payloads) == 0 {
-		return nil, fmt.Errorf("payload cannot be 0 in length")
-	}
+func (s Service) StoreBook(books Books) ([]Result, error) {
 
 	storeBookCh := make(chan *Book)
 
@@ -88,10 +84,8 @@ func (s Service) StoreBook(payloads ...[]byte) ([]Result, error) {
 	// from continuing to the next steps of calling the
 	// producer and consumer methods.
 	go func() {
-		for _, payload := range payloads {
-			if b, err := NewBook(payload); err != nil {
-				storeBookCh <- b
-			}
+		for _, book := range books.Data {
+			storeBookCh <- &book
 		}
 		// After all payloads has been sent to the channel,
 		// close it to signal that no more files will be
