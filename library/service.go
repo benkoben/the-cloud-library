@@ -1,12 +1,15 @@
 package library
 
-
 import (
 	"context"
 	"errors"
 	"sync"
 	"time"
 )
+
+type dbClient interface {
+    IsHealthy(context.Context) bool
+}
 
 type Result struct {
 	Response []byte
@@ -30,9 +33,10 @@ type DbStore struct {
 // service is used to control the behaviour our service should
 // have towards the database
 type Service struct {
-	store      DbStore
-	timeout    time.Duration
-	concurreny int
+	Store      DbStore
+    Client     dbClient
+	Timeout    time.Duration
+	Concurreny int
 }
 
 type ServiceOptions struct {
@@ -41,7 +45,7 @@ type ServiceOptions struct {
 }
 
 // Constructor function for the service
-func NewService(store DbStore, options ServiceOptions) (*Service, error) {
+func NewService(client dbClient, store DbStore, options ServiceOptions) (*Service, error) {
 	if store.Books == nil {
 		return nil, errors.New("store.books must not be nil")
 	}
@@ -54,6 +58,10 @@ func NewService(store DbStore, options ServiceOptions) (*Service, error) {
 //		return nil, errors.New("store.rentals must not be nil")
 //	}
 
+    if client == nil {
+        return nil, errors.New("client cannot be nil")
+    }
+
 	if options.Concurrency == 0 {
 		options.Concurrency = 1
 	}
@@ -63,9 +71,10 @@ func NewService(store DbStore, options ServiceOptions) (*Service, error) {
 	}
 
 	return &Service{
-		store:      store,
-		timeout:    options.Timeout,
-		concurreny: options.Concurrency,
+		Store:      store,
+        Client:     client,
+		Timeout:    options.Timeout,
+		Concurreny: options.Concurrency,
 	}, nil
 }
 

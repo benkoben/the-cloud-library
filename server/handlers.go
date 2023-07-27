@@ -59,3 +59,13 @@ func (s *server) bookHandler() http.Handler {
 		}
 	})
 }
+
+func (s *server) healthzHandler() http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        if r.Method == http.MethodGet {
+            // read from healthz channel
+        } else {
+			write(w, newError(http.StatusMethodNotAllowed, "Method not allowed"))
+        }
+    })
+}

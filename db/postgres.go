@@ -1,4 +1,4 @@
-package library
+package db
 
 import (
 	"context"
@@ -6,10 +6,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-    "os"
+	"os"
 	"strconv"
 	"strings"
-    _ "github.com/lib/pq"
+	"time"
+
+	_ "github.com/lib/pq"
+)
+
+const (
+    defaultTimeout = 10
 )
 
 var (
@@ -42,19 +48,19 @@ func NewDbCredentials(path string) (*Credentials, error) {
 	return &cred, nil
 }
 
-type postgresClient struct {
-	connString string
-	context    context.Context
-	driver     string
+type PostgresClient struct {
+    Client     *sql.DB
+    Timeout    time.Duration
 }
 
 type PostgresClientOptions struct {
 	Host       string
 	SslEnabled bool
 	Database   string
+    Timeout    time.Duration
 }
 
-func NewPgClient(cred Credentials, options PostgresClientOptions) (*sql.DB, error) {
+func NewPgClient(cred Credentials, options PostgresClientOptions) (*PostgresClient, error) {
 	if options.Database == "" {
 		return nil, errors.New("database must not be empty")
 	}
@@ -73,5 +79,16 @@ func NewPgClient(cred Credentials, options PostgresClientOptions) (*sql.DB, erro
 		return nil, err
 	}
 
-	return db, nil
+	return &PostgresClient{
+        Client: db,
+        Timeout: options.Timeout,
+    }, db.Ping()
+}
+
+// Checks if the database connection is alive. If possible it will restart the connection.
+func (c *PostgresClient) IsHealthy(ctx context.Context, healthCh chan <- struct{}){
+    if err := c.Client.PingContext(ctx); err != nil {
+                 
+    }
+    return
 }

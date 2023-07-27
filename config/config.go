@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/benkoben/the-cloud-library/library"
+	"github.com/benkoben/the-cloud-library/db"
 	"github.com/caarlos0/env/v6"
 )
 
@@ -88,24 +89,24 @@ func New() (*Configuration, error) {
 
 // Tie all settings for the database layer together and returns a Service
 func NewLibraryService(cfg *Library) (*library.Service, error) {
-	cred, err := library.NewDbCredentials(cfg.DatabaseCredentials)
+	cred, err := db.NewDbCredentials(cfg.DatabaseCredentials)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create db credentials: %s\n", err)
 	}
 
-	dbOptions := &library.PostgresClientOptions{
+	dbOptions := &db.PostgresClientOptions{
 		Host:       cfg.DatabaseHost + ":" + cfg.DatabasePort,
 		SslEnabled: cfg.DatabaseSslEnabled,
 		Database:   cfg.DatabaseName,
 	}
 
-	dbClient, err := library.NewPgClient(*cred, *dbOptions)
+	dbClient, err := db.NewPgClient(*cred, *dbOptions)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create new db client: %s\n", err)
 	}
 
     // bookStore implements all CRUD operations for the books table
-	bookStore, err := library.NewBookStore(dbClient)
+	bookStore, err := library.NewBookStore(dbClient.Client)
 	if err != nil {
 		return nil, fmt.Errorf("could not create bookStore: %s\n", err)
 	}
@@ -133,5 +134,5 @@ func NewLibraryService(cfg *Library) (*library.Service, error) {
 		Concurrency: cfg.Concurrency,
 	}
 
-	return library.NewService(dbStore, opts)
+	return library.NewService(dbClient, dbStore, opts)
 }

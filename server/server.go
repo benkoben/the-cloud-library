@@ -1,13 +1,14 @@
 package server
 
 import (
+	"context"
+	"log"
 	"net/http"
+	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
 	"time"
-    "os/signal"
-    "syscall"
-    "context"
-    "os"
 
 	"github.com/benkoben/the-cloud-library/library"
 )
@@ -18,6 +19,13 @@ const (
 	defaultWriteTimeout      = time.Second * 15
 	defaultIdleTimeout       = time.Second * 15
 )
+
+var ( 
+)
+
+type status struct {
+    Healthy bool `json:'healthy'`
+}
 
 type logger interface {
 	Printf(format string, v ...any)
@@ -33,6 +41,7 @@ type server struct {
 	router     *http.ServeMux
 	log        logger
 	service    library.Service
+    status status
 }
 
 // Options contains options for the server.
@@ -68,6 +77,8 @@ func New(options Options) (*server, error) {
 		options.IdleTimeout = defaultIdleTimeout
 	}
 
+    status := status{Healthy: true}
+
 	srv := &http.Server{
 		Addr:         options.Host + ":" + strconv.Itoa(options.Port),
 		Handler:      options.Router,
@@ -81,6 +92,7 @@ func New(options Options) (*server, error) {
 		router:     options.Router,
 		log:        options.Log,
 		service:    options.Service,
+        status: status,
 	}, nil
 }
 
@@ -94,6 +106,12 @@ func (s server) Start() {
 		}
 		s.log.Println("Server stopped.")
 	}()
+
+    // implement go routine that checks health
+    go func() {
+            time.Sleep("")
+    }()
+
 	s.log.Printf("Server listening on: %s.\n", s.httpServer.Addr)
 	s.stop()
 }
