@@ -10,6 +10,7 @@ const (
 	//	errNotMultipartError    = "Malformed request. Not multipart/form-data."
 	errMissingFieldBook = "Malformed request. Request body cannot be marshaled into Book"
 	errUnauthorized     = "Not authorized."
+    errMissingParameter = "Missing parameter"
 )
 
 // Error represents an HTTP error response from the server.

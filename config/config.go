@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/benkoben/the-cloud-library/library"
+	"github.com/benkoben/the-cloud-library/db"
 	"github.com/caarlos0/env/v6"
 )
 
@@ -22,7 +23,7 @@ const (
 const (
 	defaultDatabaseHost        = "127.0.0.1"
 	defaultDatabasePort        = "5432"
-	defaultDatabaseSslEnabled  = false
+	defaultDatabaseSslEnabled  = "disable"
 	defaultDatabaseName        = "library"
 	defaultDatabaseCredentials = "/credentials.json"
 	defaultLibraryTimeout      = time.Second * 30
@@ -47,7 +48,7 @@ type Server struct {
 // Librabry defines all the settings for the database service component of the application
 type Library struct {
 	DatabaseHost        string        `env:"LIBRARY_SERVICE_DB_HOST"`
-	DatabaseSslEnabled  bool          `env:"LIBRARY_SERVICE_DB_SSL_ENABLED"`
+	DatabaseSslEnabled  string        `env:"LIBRARY_SERVICE_DB_SSL_ENABLED"`
 	DatabasePort        string        `env:"LIBRARY_SERVICE_DB_PORT"`
 	DatabaseName        string        `env:"LIBRARY_SERVICE_DB_NAME"`
 	DatabaseCredentials string        `env:"LIBRARY_SERVICE_DB_CRED_PATH"`
@@ -88,24 +89,24 @@ func New() (*Configuration, error) {
 
 // Tie all settings for the database layer together and returns a Service
 func NewLibraryService(cfg *Library) (*library.Service, error) {
-	cred, err := library.NewDbCredentials(cfg.DatabaseCredentials)
+	cred, err := db.NewDbCredentials(cfg.DatabaseCredentials)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create db credentials: %s\n", err)
 	}
 
-	dbOptions := &library.PostgresClientOptions{
+	dbOptions := &db.PostgresClientOptions{
 		Host:       cfg.DatabaseHost + ":" + cfg.DatabasePort,
 		SslEnabled: cfg.DatabaseSslEnabled,
 		Database:   cfg.DatabaseName,
 	}
 
-	dbClient, err := library.NewPgClient(*cred, *dbOptions)
+	dbClient, err := db.NewPgClient(*cred, *dbOptions)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create new db client: %s\n", err)
 	}
 
     // bookStore implements all CRUD operations for the books table
-	bookStore, err := library.NewBookStore(dbClient)
+	bookStore, err := library.NewBookStore(dbClient.Client)
 	if err != nil {
 		return nil, fmt.Errorf("could not create bookStore: %s\n", err)
 	}
@@ -133,5 +134,5 @@ func NewLibraryService(cfg *Library) (*library.Service, error) {
 		Concurrency: cfg.Concurrency,
 	}
 
-	return library.NewService(dbStore, opts)
+	return library.NewService(dbClient, dbStore, opts)
 }

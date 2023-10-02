@@ -2,10 +2,11 @@ package main
 
 import (
     "log"
-    "net/http"
 
     "github.com/benkoben/the-cloud-library/server"
     "github.com/benkoben/the-cloud-library/config"
+
+    "github.com/gorilla/mux"
 
 )
 
@@ -24,7 +25,7 @@ func main() {
 
 
     srv, err := server.New(server.Options{
-		Router:            http.NewServeMux(),
+		Router:            mux.NewRouter(),
         Service:           *svc,
 		Log:               log.Default(),
 		Host:              cfg.Server.Host,

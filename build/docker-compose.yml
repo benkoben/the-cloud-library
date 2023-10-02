@@ -9,9 +9,11 @@ services:
     environment:
       POSTGRES_USER: pgadmin
       POSTGRES_PASSWORD: Syp9393
+    ports:
+      - 5432:5432
 
   adminer:
     image: adminer
     restart: always
     ports:
-      - 8080:8080
+      - 8888:8080

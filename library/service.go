@@ -8,16 +8,16 @@ import (
 	"time"
 )
 
-type Result struct {
-	Response []byte
+type dbClient interface {
+    IsHealthy(context.Context) bool
 }
 
 // tablesStores wraps all CRUD operations for a table inside the database
 type bookStore interface {
-	Store(context.Context, *Book) (Result, error)
-	Get(context.Context, int64) (Result, error)
-	Delete(context.Context, *Book) (Result, error)
-	List(context.Context, *BooksFilters) (Result, error)
+	Store(context.Context, *Book) error
+	Get(context.Context, int64) (*Book, error)
+	Delete(context.Context, *Book) error
+	List(context.Context, *BooksFilters) ([]*Book, error)
 }
 
 // Each table in the datbase has its own tableStore.
@@ -29,10 +29,24 @@ type DbStore struct {
 
 // service is used to control the behaviour our service should
 // have towards the database
+// type Service struct {
+// 	store      DbStore
+// 	timeout    time.Duration
+// 	concurreny int
+// }
+// 
+// type ServiceOptions struct {
+// 	Timeout     time.Duration
+// 	Concurrency int
+// }
+
+// service is used to control the behaviour our service should
+// have towards the database
 type Service struct {
-	store      DbStore
-	timeout    time.Duration
-	concurreny int
+	Store      DbStore
+    Client     dbClient
+	Timeout    time.Duration
+	Concurreny int
 }
 
 type ServiceOptions struct {
@@ -41,7 +55,7 @@ type ServiceOptions struct {
 }
 
 // Constructor function for the service
-func NewService(store DbStore, options ServiceOptions) (*Service, error) {
+func NewService(client dbClient, store DbStore, options ServiceOptions) (*Service, error) {
 	if store.Books == nil {
 		return nil, errors.New("store.books must not be nil")
 	}
@@ -62,20 +76,21 @@ func NewService(store DbStore, options ServiceOptions) (*Service, error) {
 		options.Timeout = time.Second * 10
 	}
 
-	return &Service{
-		store:      store,
-		timeout:    options.Timeout,
-		concurreny: options.Concurrency,
+   	return &Service{
+		Store:      store,
+        Client:     client,
+		Timeout:    options.Timeout,
+		Concurreny: options.Concurrency,
 	}, nil
 }
 
 type operation struct {
-	result    Result
+	result    any
 	operation string
 	err       error
 }
 
-func (s Service) StoreBook(books Books) ([]Result, error) {
+func (s Service) StoreBook(books []Book) ([]any, error) {
 
 	storeBookCh := make(chan *Book)
 
@@ -84,8 +99,10 @@ func (s Service) StoreBook(books Books) ([]Result, error) {
 	// from continuing to the next steps of calling the
 	// producer and consumer methods.
 	go func() {
-		for _, book := range books.Data {
-			storeBookCh <- &book
+		for _, book := range books {
+			// TODO: https://go.dev/blog/loopvar-preview
+			copyBook := book
+			storeBookCh <- &copyBook
 		}
 		// After all payloads has been sent to the channel,
 		// close it to signal that no more files will be
@@ -103,23 +120,24 @@ func (s Service) storeBookProducer(storeBookCh <-chan *Book) <-chan operation {
 	var wg sync.WaitGroup
 
 	// table signals which which entity the payloads belong to.
-	for i := 1; i <= s.concurreny; i++ {
+	for i := 1; i <= s.Concurreny; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 
 			for book := range storeBookCh {
-				ctx, cancel := context.WithTimeout(context.Background(), s.timeout)
+				ctx, cancel := context.WithTimeout(context.Background(), s.Timeout)
 				defer cancel()
 
 				o := operation{}
 				o.operation = "store"
 
-				res, err := s.store.Books.Store(ctx, book)
+				err := s.Store.Books.Store(ctx, book)
 				if err != nil {
 					o.err = err
+				} else {
+					o.result = book
 				}
-				o.result = res
 
 				storeBookResultCh <- o
 			}
@@ -136,8 +154,8 @@ func (s Service) storeBookProducer(storeBookCh <-chan *Book) <-chan operation {
 	return storeBookResultCh
 }
 
-func (s Service) storeBookResultConsumer(storeBookResultCh <-chan operation) ([]Result, error) {
-	results := make([]Result, 0, 0)
+func (s Service) storeBookResultConsumer(storeBookResultCh <-chan operation) ([]any, error) {
+	results := make([]any, 0, 0)
 	errs := make([]error, 0, 0)
 
 	for res := range storeBookResultCh {
@@ -148,4 +166,15 @@ func (s Service) storeBookResultConsumer(storeBookResultCh <-chan operation) ([]
 		}
 	}
 	return results, errors.Join(errs...)
+}
+
+func (s Service) GetBook(id int64) (*Book, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), s.Timeout)
+	defer cancel()
+
+    book, err := s.Store.Books.Get(ctx, id)
+    if err != nil {
+        return nil, err
+    }
+	return book, nil
 }

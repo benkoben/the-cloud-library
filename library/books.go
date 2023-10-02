@@ -7,22 +7,29 @@ package library
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
 	"github.com/Masterminds/squirrel"
+	"github.com/lib/pq"
 )
 
+// Database specifics
+//
+// TODO: For future improvements we could implement somekind of logic
+// that determines the database driver and sets a PlaceholderFormat accordingly.
+var (
+    databasePlaceHolderFormat = squirrel.Dollar
+)
+
+// Errors
 var (
 	ErrNotFound = errors.New("not found")
 )
 
-type Books struct {
-	Data []Book `json:"data"`
-}
 
 type Book struct {
 	Id             int        `json:"id"`
@@ -30,30 +37,16 @@ type Book struct {
 	Title          string     `json:"title" validate:"required"`
 	Lang           string     `json:"lang" validate:"required"`
 	Translator     string     `json:"translator"`
-	Author         string     `json:"author" validate:"required"`
+    Authors        pq.StringArray `json:"authors" validate:"required"`
 	Pages          int        `json:"pages" validate:"required"`
 	Publisher      string     `json:"publisher" validate:"required"`
 	Published_date *time.Time `json:"published_date"`
 	Added_date     *time.Time `json:"added_date"`
 }
 
-func (b *Books) Marshal() ([]byte, error) {
-	return json.Marshal(b)
-}
-
-func NewBooks(payload []byte) (*Books, error) {
-	if len(payload) == 0 {
-		return nil, fmt.Errorf("payload cannot be 0 in size")
-	}
-	var books Books
-	if err := json.Unmarshal(payload, &books); err != nil {
-		return nil, fmt.Errorf("cannot unmarshall payload into book %w,", err)
-	}
-	return &books, nil
-}
-
 type BookStore struct {
 	db *sql.DB
+    placeHolderFormat squirrel.PlaceholderFormat
 }
 
 // Constructor method used to instantiate a new BookStore
@@ -68,58 +61,50 @@ func NewBookStore(db *sql.DB) (*BookStore, error) {
 // it will be inserted and the ID will be set.
 //
 // If the book has an ID and it does not exist in the database, Store returns ErrNotFound.
-func (bs *BookStore) Store(ctx context.Context, b *Book) (Result, error) {
-	r := Books{Data: []Book{*b}}
-
-	response, err := r.Marshal()
-	if err != nil {
-		return Result{}, fmt.Errorf("could not marshal book %w,", err)
-	}
-	res := Result{Response: response}
+func (bs *BookStore) Store(ctx context.Context, b *Book) error {
 
 	if b.Id == 0 {
-		return res, bs.insert(ctx, b)
+		return bs.insert(ctx, b)
 	}
 
-	return res, bs.update(ctx, b)
+	return bs.update(ctx, b)
 }
 
 // Retrieves a specific book from the database based on the id argument
-func (bs *BookStore) Get(ctx context.Context, id int64) (Result, error) {
+func (bs *BookStore) Get(ctx context.Context, id int64) (*Book, error) {
 	var b Book
-	err := squirrel.
-		Select("id", "isbn", "title", "translator", "author", "pages", "publisher", "published_date", "added_date").
-		From("books").
-		Where("id = ?", id).
-		RunWith(bs.db).
-		QueryRowContext(ctx).
-		Scan(&b.Id, &b.Isbn, &b.Title, &b.Translator, &b.Author, &b.Pages, &b.Publisher, &b.Published_date, &b.Added_date)
 
-	if err != nil {
-		return Result{}, err
-	}
+    psql := squirrel.StatementBuilder.PlaceholderFormat(squirrel.Dollar)
+    // Build query
+	book := psql.Select("id, isbn, title, lang, translator, authors, pages, publisher, published_date").From("books").Where("id = ?", id).Limit(1)
+
+    rows := book.RunWith(bs.db).QueryRowContext(ctx)
+    err := rows.Scan(&b.Id, &b.Isbn, &b.Title, &b.Lang, &b.Translator, &b.Authors, &b.Pages, &b.Publisher, &b.Published_date)
+
+    if err != nil && err != sql.ErrNoRows {
+        // log the error
+    }
 
 	// Build response message
-	r := Books{Data: []Book{b}}
-
-	response, err := r.Marshal()
-	if err != nil {
-		return Result{}, fmt.Errorf("could not marshal book %w,", err)
-	}
-
-	return Result{
-		Response: response,
-	}, nil
+    return &b, nil
 }
 
 // Add a book to the books table
 func (bs *BookStore) insert(ctx context.Context, b *Book) error {
-	return squirrel.
+    authors, _ := b.Authors.Value()
+
+    // TODO: add published and added date to the insert statement
+    q := squirrel.
 		Insert("books").
-		Columns("id", "isbn", "title", "translator", "author", "pages", "publisher", "published_date", "added_date").
-		Values(b.Id, b.Isbn, b.Title, b.Translator, b.Author, b.Pages, b.Publisher, b.Published_date, b.Added_date).
-		Suffix("RETURNING id").
-		RunWith(bs.db).
+		Columns("isbn", "title", "translator", "authors", "pages", "publisher", "lang").
+		Values(b.Isbn, b.Title, b.Translator, authors, b.Pages, b.Publisher, b.Lang).
+		Suffix("ON CONFLICT (isbn) DO UPDATE SET isbn = EXCLUDED.isbn, title = EXCLUDED.title, translator = EXCLUDED.translator, authors = EXCLUDED.authors, pages = EXCLUDED.pages, publisher = EXCLUDED.publisher, lang = EXCLUDED.lang").
+		Suffix("RETURNING id")
+
+    log.Println(squirrel.DebugSqlizer(q))
+
+    return q.RunWith(bs.db).
+        PlaceholderFormat(databasePlaceHolderFormat).
 		QueryRowContext(ctx).
 		Scan(&b.Id)
 }
@@ -135,13 +120,14 @@ func (bs *BookStore) update(ctx context.Context, b *Book) error {
 		Set("isbn", b.Isbn).
 		Set("title", b.Title).
 		Set("translator", b.Translator).
-		Set("author", b.Author).
+		Set("authors", pq.Array(b.Authors)).
 		Set("pages", b.Pages).
 		Set("publisher", b.Publisher).
 		Set("published_date", b.Published_date).
 		Set("added_date", b.Added_date).
 		Where("id = ?", b.Id).
 		RunWith(bs.db).
+        PlaceholderFormat(databasePlaceHolderFormat).
 		ExecContext(ctx)
 
 	if err != nil {
@@ -157,35 +143,26 @@ func (bs *BookStore) update(ctx context.Context, b *Book) error {
 // Delete removes a book from the database
 //
 // If the delete operation returns an empty reponse then a ErrNotFound is returned
-func (bs *BookStore) Delete(ctx context.Context, b *Book) (Result, error) {
+func (bs *BookStore) Delete(ctx context.Context, b *Book) error {
 
 	res, err := squirrel.
 		Delete("books").
 		Where("id = ? ", b.Id).
 		RunWith(bs.db).
+        PlaceholderFormat(databasePlaceHolderFormat).
 		ExecContext(ctx)
 
 	if err != nil {
-		return Result{}, fmt.Errorf("could not marshal book %w,", err)
+		return fmt.Errorf("could not marshal book %w,", err)
 	}
 
 	rows, _ := res.RowsAffected()
 
 	if rows == 0 {
-		return Result{}, ErrNotFound
+		return ErrNotFound
 	}
 
-	r := Books{Data: []Book{*b}}
-
-	// Create response message
-	response, err := r.Marshal()
-	if err != nil {
-		return Result{}, fmt.Errorf("could not marshal book %w,", err)
-	}
-
-	return Result{
-		Response: response,
-	}, nil
+	return nil
 }
 
 type BooksFilters struct {
@@ -209,11 +186,12 @@ type BooksFilters struct {
 //
 // If filters is nil, all characters are returned. Otherwise, the results are
 // filtered by the criteria in filters.
-func (bs *BookStore) List(ctx context.Context, filters *BooksFilters) (Result, error) {
+func (bs *BookStore) List(ctx context.Context, filters *BooksFilters) ([]*Book, error) {
 	q := squirrel.
 		Select("b.id", "b.actor_id", "b.name").
 		From("books b").
-		RunWith(bs.db)
+		RunWith(bs.db).
+        PlaceholderFormat(databasePlaceHolderFormat)
 
 	if filters != nil {
 		if filters.Id != 0 {
@@ -234,32 +212,27 @@ func (bs *BookStore) List(ctx context.Context, filters *BooksFilters) (Result, e
 		if filters.Lang != "" {
 			q = q.Where("LOWER(lang) LIKE ?", "%"+strings.ToLower(filters.Lang)+"%")
 		}
-
+        // TODO: add author(s) filter here
 	}
 
 	rows, err := q.QueryContext(ctx)
 	if err != nil {
-		return Result{}, err
+		return nil, err
 	}
 
 	defer rows.Close()
 
-	var books Books
+	var books []*Book
 	for rows.Next() {
 		var b Book
-		err := rows.Scan(&b.Id, &b.Isbn, &b.Title, &b.Lang, &b.Translator, &b.Author, &b.Pages, &b.Publisher, &b.Published_date, &b.Added_date)
+		err := rows.Scan(&b.Id, &b.Isbn, &b.Title, &b.Lang, &b.Translator, &b.Pages, &b.Publisher, &b.Published_date, &b.Added_date)
 		if err != nil {
-			return Result{}, fmt.Errorf("list characters %w,", err)
+			return nil, fmt.Errorf("list characters %w,", err)
 		}
-		books.Data = append(books.Data, b)
+		books = append(books, &b)
 	}
 
-	response, err := books.Marshal()
-	if err != nil {
-		return Result{}, fmt.Errorf("could not marshal book %w,", err)
-	}
 
-	return Result{
-		Response: response,
-	}, nil
+    return books, nil
 }
+

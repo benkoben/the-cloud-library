@@ -3,24 +3,17 @@ package server
 import (
 	"encoding/json"
 	"net/http"
-    "github.com/benkoben/the-cloud-library/library"
 )
 
+
 type response struct {
-	Data    []string `json:"data"`
-	Message string   `json:"message"`
-}
+    Res interface{} `json:"res"`
+} 
 
 // newUploadResults creates and returns an uploadRresults.
-func newResponse(results []library.Result) response {
-	tables := make([]string, 0, len(results))
-	for _, result := range results {
-		tables = append(tables, string(result.Response))
-	}
-
+func newResponse(results any) response {
 	return response{
-		Data: tables,
-		Message: "Success",
+		Res: results,
 	}
 }
 

@@ -1,15 +1,16 @@
 package server
 
 import (
+	"context"
 	"net/http"
+	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
 	"time"
-    "os/signal"
-    "syscall"
-    "context"
-    "os"
 
 	"github.com/benkoben/the-cloud-library/library"
+	"github.com/gorilla/mux"
 )
 
 const (
@@ -30,14 +31,14 @@ type logger interface {
 // and services.
 type server struct {
 	httpServer *http.Server
-	router     *http.ServeMux
+	router     *mux.Router
 	log        logger
 	service    library.Service
 }
 
 // Options contains options for the server.
 type Options struct {
-	Router       *http.ServeMux
+	Router       *mux.Router
 	Service      library.Service
 	Log          logger
 	Host         string
@@ -50,7 +51,7 @@ type Options struct {
 func New(options Options) (*server, error) {
 
 	if options.Router == nil {
-		options.Router = http.NewServeMux()
+		options.Router = mux.NewRouter()
 	}
 	if options.Port == 0 {
 		options.Port = defaultPort

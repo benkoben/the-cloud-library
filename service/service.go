@@ -14,7 +14,7 @@ import (
 func main() {
     
     dbCred := library.Credentials{Username: "postgres", Password: "Syp9393"}
-    dbOptions := library.PostgresClientOptions{Host: "localhost", SslEnabled: false, Database: "library"}
+    dbOptions := library.PostgresClientOptions{Host: "localhost", SslEnabled: "disable", Database: "library"}
     serviceOptions := library.ServiceOptions{Timeout: 600, Concurrency: 1}
 
 

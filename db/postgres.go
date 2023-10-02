@@ -1,15 +1,17 @@
-package library
+package db
 
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"encoding/json"
 	"errors"
 	"fmt"
-    "os"
-	"strconv"
+	"os"
 	"strings"
-    _ "github.com/lib/pq"
+	"time"
+
+    "github.com/lib/pq"
 )
 
 var (
@@ -42,19 +44,28 @@ func NewDbCredentials(path string) (*Credentials, error) {
 	return &cred, nil
 }
 
-type postgresClient struct {
-	connString string
-	context    context.Context
-	driver     string
+type PostgresClient struct {
+    Client     *sql.DB
+    Timeout    time.Duration
 }
 
 type PostgresClientOptions struct {
 	Host       string
-	SslEnabled bool
+	SslEnabled string
 	Database   string
+    Timeout    time.Duration
 }
 
-func NewPgClient(cred Credentials, options PostgresClientOptions) (*sql.DB, error) {
+// Calls the pq.Array which returns the correct datatype when inserting array values
+// to a postgres database
+func (c *PostgresClient) ToArray(v interface{}) interface {
+	driver.Valuer
+	sql.Scanner
+}{
+    return pq.Array(v) 
+}
+
+func NewPgClient(cred Credentials, options PostgresClientOptions) (*PostgresClient, error) {
 	if options.Database == "" {
 		return nil, errors.New("database must not be empty")
 	}
@@ -64,7 +75,7 @@ func NewPgClient(cred Credentials, options PostgresClientOptions) (*sql.DB, erro
 		"{password}", cred.Password,
 		"{host}", options.Host,
 		"{database}", options.Database,
-		"{sslmode}", strconv.FormatBool(options.SslEnabled),
+		"{sslmode}", options.SslEnabled,
 	)
 	connStr := replacer.Replace(postgresBaseConnString)
 
@@ -73,5 +84,16 @@ func NewPgClient(cred Credentials, options PostgresClientOptions) (*sql.DB, erro
 		return nil, err
 	}
 
-	return db, nil
+	return &PostgresClient{
+        Client: db,
+        Timeout: options.Timeout,
+    }, db.Ping()
+}
+
+// Checks if the database connection is alive. If possible it will restart the connection.
+func (c *PostgresClient) IsHealthy(ctx context.Context) bool{
+    if err := c.Client.PingContext(ctx); err != nil {
+        return false   
+    }
+    return true
 }
